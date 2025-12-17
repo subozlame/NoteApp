@@ -1,28 +1,59 @@
-import React, { useState, useEffect } from "react";
-import { SafeAreaView, ScrollView, TextInput, TouchableOpacity, Text, Image, KeyboardAvoidingView, Platform, Alert } from "react-native";
+// app/screens/AddNoteScreen.tsx
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  Alert,
+  Modal,
+  FlatList,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { usePageStyles } from "@/hooks/pageStyles";
-import { v4 as uuidv4 } from "uuid";
 import * as ImagePicker from "expo-image-picker";
 import { storeData, getData } from "@/utils/storage";
+import { Ionicons } from "@expo/vector-icons";
 
-type Note = { id: string; title: string; description: string; images: string[] };
+type Folder = {
+  id: string;
+  name: string;
+};
+
+type Note = {
+  id: string;
+  title: string;
+  description: string;
+  images: string[];
+  folderId?: string;
+};
 
 export default function AddNoteScreen() {
   const styles = usePageStyles();
+  const router = useRouter();
+
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<string[]>([]);
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState<Folder | null>(null);
 
+  const [folderModalVisible, setFolderModalVisible] = useState(false);
+
+  /* Load notes & folders */
   useEffect(() => {
-    // Load notes from AsyncStorage
-    getData("notes").then(data => {
-      if (data) setNotes(data);
-    });
+    getData("notes").then((data) => data && setNotes(data));
+    getData("folders").then((data) => data && setFolders(data));
   }, []);
 
+  /* Pick images */
   const pickImages = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -31,52 +62,119 @@ export default function AddNoteScreen() {
     });
 
     if (!result.canceled) {
-      const selectedImages = result.assets.map(a => a.uri);
-      setImages([...images, ...selectedImages]);
+      setImages(result.assets.map((a) => a.uri));
     }
   };
 
+  /* Save note */
   const saveNote = async () => {
-    if (!title && !description && images.length === 0) {
-      Alert.alert("Cannot save empty note");
+    if (!title.trim() && !description.trim() && images.length === 0) {
+      Alert.alert("Empty note", "Add some content before saving.");
       return;
     }
-    const newNote: Note = { id: uuidv4(), title, description, images };
-    const updatedNotes = [newNote, ...notes];
-    setNotes(updatedNotes);
-    await storeData("notes", updatedNotes);
 
-    setTitle("");
-    setDescription("");
-    setImages([]);
+    const newNote: Note = {
+      id: Date.now().toString(),
+      title,
+      description,
+      images,
+      folderId: selectedFolder?.id,
+    };
+
+    const updated = [newNote, ...notes];
+    setNotes(updated);
+    await storeData("notes", updated);
+
+    Alert.alert("Saved", "Note saved successfully");
+    router.back();
   };
 
   return (
     <SafeAreaView style={styles.page}>
       <Header title="Add Note" showBack />
 
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView>
-          <TextInput style={styles.input} placeholder="Title" placeholderTextColor="#9CA3AF" value={title} onChangeText={setTitle} />
-          <TextInput style={[styles.input, { height: 100 }]} placeholder="Description" placeholderTextColor="#9CA3AF" multiline value={description} onChangeText={setDescription} />
+      <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled">
+        {/* Title */}
+        <TextInput
+          style={styles.input}
+          placeholder="Title"
+          placeholderTextColor={styles.input.color}
+          value={title}
+          onChangeText={setTitle}
+        />
 
-          <ScrollView horizontal style={{ marginBottom: 8 }}>
-            {images.map(uri => (
-              <Image key={uri} source={{ uri }} style={{ width: 80, height: 80, marginRight: 8, borderRadius: 8 }} />
-            ))}
-          </ScrollView>
+        {/* Description */}
+        <TextInput
+          style={styles.textArea}
+          placeholder="Description"
+          placeholderTextColor={styles.input.color}
+          multiline
+          value={description}
+          onChangeText={setDescription}
+        />
 
-          <TouchableOpacity style={styles.button} onPress={pickImages}>
-            <Text style={styles.buttonText}>+ Add Attachments</Text>
-          </TouchableOpacity>
+        {/* Folder Selector */}
+        <TouchableOpacity
+          style={styles.folderSelector}
+          onPress={() => setFolderModalVisible(true)}
+        >
+          <Ionicons name="folder-outline" size={22} />
+          <Text style={styles.folderSelectorText}>
+            {selectedFolder ? selectedFolder.name : "Select Folder"}
+          </Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity style={styles.button} onPress={saveNote}>
-            <Text style={styles.buttonText}>Save Note</Text>
-          </TouchableOpacity>
+        {/* Images */}
+        <ScrollView horizontal style={styles.imageRow}>
+          {images.map((uri) => (
+            <Image key={uri} source={{ uri }} style={styles.imagePreview} />
+          ))}
         </ScrollView>
-      </KeyboardAvoidingView>
 
-      <Footer screenName="Add Note" />
+        <TouchableOpacity style={styles.secondaryButton} onPress={pickImages}>
+          <Text style={styles.secondaryButtonText}>Add Images</Text>
+        </TouchableOpacity>
+
+        {/* Save Button */}
+        <TouchableOpacity style={styles.primaryButton} onPress={saveNote}>
+          <Text style={styles.primaryButtonText}>Save Note</Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      {/* Folder Picker Modal */}
+      <Modal visible={folderModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Folder</Text>
+
+            <FlatList
+              data={folders}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.modalItem}
+                  onPress={() => {
+                    setSelectedFolder(item);
+                    setFolderModalVisible(false);
+                  }}
+                >
+                  <Text style={styles.modalItemText}>{item.name}</Text>
+                </TouchableOpacity>
+              )}
+            />
+
+            <TouchableOpacity
+              style={styles.modalCancel}
+              onPress={() => setFolderModalVisible(false)}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Footer (+ does NOTHING here) */}
+      <Footer screenName="AddNote" onAddNote={() => {}} />
     </SafeAreaView>
   );
 }

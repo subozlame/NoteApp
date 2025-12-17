@@ -1,40 +1,56 @@
 // app/screens/SearchScreen.tsx
-import React, { useState } from "react";
-import { SafeAreaView, View, TextInput, FlatList, Text, TouchableOpacity } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  TextInput,
+  FlatList,
+  Text,
+  TouchableOpacity,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { usePageStyles } from "@/hooks/pageStyles";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { getData } from "@/utils/storage";
 
-const SUGGESTIONS = [
-  "Shared Notice",
-  "Locked Notice",
-  "Notes with Checklists",
-  "Notes with Tags",
-  "Notes with Drawings",
-  "Notes with Scanned Documents",
-  "Notes with Attachments",
-];
+type Folder = {
+  id: string;
+  name: string;
+};
 
 export default function SearchScreen() {
   const styles = usePageStyles();
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
 
+  const [query, setQuery] = useState("");
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [filteredFolders, setFilteredFolders] = useState<Folder[]>([]);
+
+  // Load folders from AsyncStorage on mount
+  useEffect(() => {
+    const fetchFolders = async () => {
+      const data = await getData("folders");
+      if (data) {
+        setFolders(data);
+        setFilteredFolders(data); // initially show all folders
+      }
+    };
+    fetchFolders();
+  }, []);
+
+  // Filter folders in real-time
   const handleChange = (text: string) => {
     setQuery(text);
-    const filtered = SUGGESTIONS.filter((s) =>
-      s.toLowerCase().includes(text.toLowerCase())
+    const filtered = folders.filter((f) =>
+      f.name.toLowerCase().includes(text.toLowerCase())
     );
-    setFilteredSuggestions(filtered);
+    setFilteredFolders(filtered);
   };
 
-  const handleSelectSuggestion = (suggestion: string) => {
-    setQuery(suggestion);
-    setFilteredSuggestions([]);
-    // Optional: trigger search/filter notes here
+  const handleSelectFolder = (folder: Folder) => {
+    router.push(`/screens/AddNoteScreen?folder=${folder.id}`);
   };
 
   return (
@@ -46,31 +62,32 @@ export default function SearchScreen() {
         <Ionicons name="search-outline" size={24} color={styles.input.color} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search notes, folders, attachments..."
+          placeholder="Search folders..."
           placeholderTextColor={styles.input.color}
           value={query}
           onChangeText={handleChange}
         />
       </View>
 
-      {/* Suggestions Dropdown */}
-      {filteredSuggestions.length > 0 && (
-        <FlatList
-          data={filteredSuggestions}
-          keyExtractor={(item) => item}
-          style={styles.suggestionsDropdown}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              onPress={() => handleSelectSuggestion(item)}
-              style={styles.suggestionItem}
-            >
-              <Text style={styles.suggestionText}>{item}</Text>
-            </TouchableOpacity>
-          )}
-        />
-      )}
+      {/* Real-time Folder Results */}
+      <FlatList
+        data={filteredFolders}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => handleSelectFolder(item)}
+          >
+            <Text style={styles.cardText}>{item.name}</Text>
+          </TouchableOpacity>
+        )}
+        ListEmptyComponent={
+          <Text style={styles.emptyText}>
+            {query ? "No folders found" : "No folders yet"}
+          </Text>
+        }
+      />
 
-      {/* Footer */}
       <Footer screenName="Search" onAddNote={() => router.push("/screens/AddNoteScreen")} />
     </SafeAreaView>
   );
