@@ -1,4 +1,4 @@
-# NotesApp
+# NoteApp
 
 A lightweight, cross-platform **note-taking app** built with **React Native** and **Expo**, featuring folders, images, note editing, and dark mode support.
 
@@ -46,4 +46,13 @@ A lightweight, cross-platform **note-taking app** built with **React Native** an
 
 ```bash
 git clone <repository_url>
-cd NotesApp
+cd NoteApp
+npm install
+```
+
+2. **Run the application using expo router**
+
+   ```bash
+   npx expo start -c
+   ```
+
