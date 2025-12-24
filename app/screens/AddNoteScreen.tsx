@@ -224,3 +224,5 @@ export default function AddNoteScreen() {
     </SafeAreaView>
   );
 }
+
+

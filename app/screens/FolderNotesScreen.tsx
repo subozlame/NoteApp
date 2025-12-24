@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   FlatList,
@@ -6,17 +6,18 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  Alert,
   TextInput,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import { usePageStyles } from "@/hooks/pageStyles";
 import { useModalStyles } from "@/hooks/useModalStyles";
 import { getData, storeData } from "@/utils/storage";
 import { BlurView } from "expo-blur";
-import Footer from "@/components/Footer";
 import { Ionicons } from "@expo/vector-icons";
 
 type Note = {
@@ -30,7 +31,7 @@ type Note = {
 export default function FolderNotesScreen() {
   const styles = usePageStyles();
   const modalStyles = useModalStyles();
-
+  const router = useRouter();
   const { folderId, folderName } = useLocalSearchParams<{
     folderId: string;
     folderName: string;
@@ -43,22 +44,25 @@ export default function FolderNotesScreen() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
 
-  useEffect(() => {
-    const loadNotes = async () => {
-      const data = await getData("notes");
-      if (data) {
-        const filtered = data.filter(
-          (note: Note) => note.folderId === folderId
-        );
-        setNotes(filtered);
-      }
-    };
-    loadNotes();
-  }, [folderId]);
+  // Load notes whenever screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadNotes = async () => {
+        const data = await getData("notes");
+        if (data) {
+          const filtered = data.filter(
+            (note: Note) => note.folderId === folderId
+          );
+          setNotes(filtered);
+        }
+      };
+      loadNotes();
+    }, [folderId])
+  );
 
-  function setAddModalVisible(arg0: boolean): void {
-    throw new Error("Function not implemented.");
-  }
+  const setAddModalVisible = (_: boolean) => {
+    // Placeholder if you have modal logic
+  };
 
   const handleDeleteNote = (id: string) => {
     Alert.alert("Delete Note", "Are you sure you want to delete this note?", [
@@ -69,7 +73,6 @@ export default function FolderNotesScreen() {
         onPress: async () => {
           const allNotes = (await getData("notes")) || [];
           const updated = allNotes.filter((n: Note) => n.id !== id);
-
           await storeData("notes", updated);
           setNotes(updated.filter((n: Note) => n.folderId === folderId));
         },
@@ -89,7 +92,6 @@ export default function FolderNotesScreen() {
     const updated = allNotes.map((n: Note) =>
       n.id === renamingId ? { ...n, title: renameText } : n
     );
-
     await storeData("notes", updated);
     setNotes(updated.filter((n: Note) => n.folderId === folderId));
 
@@ -123,11 +125,7 @@ export default function FolderNotesScreen() {
           <View
             style={[
               styles.cardRow,
-              {
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              },
+              { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
             ]}
           >
             {renamingId === item.id ? (
@@ -164,9 +162,7 @@ export default function FolderNotesScreen() {
                 </TouchableOpacity>
               )}
 
-              <TouchableOpacity
-                onPress={() => handleDeleteNote(item.id)}
-              >
+              <TouchableOpacity onPress={() => handleDeleteNote(item.id)}>
                 <Ionicons name="trash" size={22} color="#e74c3c" />
               </TouchableOpacity>
             </View>
@@ -202,18 +198,11 @@ export default function FolderNotesScreen() {
               <Text style={[styles.title, { fontSize: 24 }]}>
                 {selectedNote.title}
               </Text>
-              <Text
-                style={[
-                  styles.description,
-                  { fontSize: 18, marginBottom: 16 },
-                ]}
-              >
+              <Text style={[styles.description, { fontSize: 18, marginBottom: 16 }]}>
                 {selectedNote.description}
               </Text>
 
-              <View
-                style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}
-              >
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
                 {selectedNote.images.map((uri) => (
                   <TouchableOpacity
                     key={uri}
