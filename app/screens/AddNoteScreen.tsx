@@ -12,7 +12,7 @@ import {
   FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { usePageStyles } from "@/hooks/pageStyles";
@@ -37,12 +37,30 @@ export default function AddNoteScreen() {
   const styles = usePageStyles();
   const router = useRouter();
 
+  const {
+    editId,
+    title: pTitle,
+    description: pDescription,
+    images: pImages,
+    folderId: pFolderId,
+  } = useLocalSearchParams<{
+    editId?: string;
+    title?: string;
+    description?: string;
+    images?: string;
+    folderId?: string;
+  }>();
+
+  const isEdit = !!editId;
+
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [images, setImages] = useState<string[]>([]);
+  const [title, setTitle] = useState(pTitle || "");
+  const [description, setDescription] = useState(pDescription || "");
+  const [images, setImages] = useState<string[]>(
+    pImages ? JSON.parse(pImages) : []
+  );
   const [selectedFolder, setSelectedFolder] = useState<Folder | null>(null);
 
   const [folderModalVisible, setFolderModalVisible] = useState(false);
@@ -50,7 +68,15 @@ export default function AddNoteScreen() {
   /* Load notes & folders */
   useEffect(() => {
     getData("notes").then((data) => data && setNotes(data));
-    getData("folders").then((data) => data && setFolders(data));
+    getData("folders").then((data) => {
+      if (data) {
+        setFolders(data);
+        if (pFolderId) {
+          const found = data.find((f: Folder) => f.id === pFolderId);
+          if (found) setSelectedFolder(found);
+        }
+      }
+    });
   }, []);
 
   /* Pick images */
@@ -66,32 +92,51 @@ export default function AddNoteScreen() {
     }
   };
 
-  /* Save note */
+  /* Save / Update note */
   const saveNote = async () => {
     if (!title.trim() && !description.trim() && images.length === 0) {
       Alert.alert("Empty note", "Add some content before saving.");
       return;
     }
 
-    const newNote: Note = {
-      id: Date.now().toString(),
-      title,
-      description,
-      images,
-      folderId: selectedFolder?.id,
-    };
+    let updated: Note[];
 
-    const updated = [newNote, ...notes];
+    if (isEdit) {
+      updated = notes.map((n) =>
+        n.id === editId
+          ? {
+              ...n,
+              title,
+              description,
+              images,
+              folderId: selectedFolder?.id,
+            }
+          : n
+      );
+    } else {
+      const newNote: Note = {
+        id: Date.now().toString(),
+        title,
+        description,
+        images,
+        folderId: selectedFolder?.id,
+      };
+      updated = [newNote, ...notes];
+    }
+
     setNotes(updated);
     await storeData("notes", updated);
 
-    Alert.alert("Saved", "Note saved successfully");
+    Alert.alert(
+      isEdit ? "Updated" : "Saved",
+      isEdit ? "Note updated successfully" : "Note saved successfully"
+    );
     router.back();
   };
 
   return (
     <SafeAreaView style={styles.page}>
-      <Header title="Add Note" showBack />
+      <Header title={isEdit ? "Edit Note" : "Add Note"} showBack />
 
       <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled">
         {/* Title */}
@@ -137,7 +182,9 @@ export default function AddNoteScreen() {
 
         {/* Save Button */}
         <TouchableOpacity style={styles.primaryButton} onPress={saveNote}>
-          <Text style={styles.primaryButtonText}>Save Note</Text>
+          <Text style={styles.primaryButtonText}>
+            {isEdit ? "Update Note" : "Save Note"}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -173,7 +220,6 @@ export default function AddNoteScreen() {
         </View>
       </Modal>
 
-      {/* Footer (+ does NOTHING here) */}
       <Footer screenName="AddNote" onAddNote={() => {}} />
     </SafeAreaView>
   );

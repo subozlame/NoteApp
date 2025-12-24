@@ -119,7 +119,7 @@ export default function SettingsScreen() {
           NotesApp v1.0.0
         </Text>
         <Text style={[settingStyles.infoText, { color: isDarkMode ? "#9CA3AF" : "#6B7280" }]}>
-          © 2025 LumaTech Inc. All rights reserved.
+          © 2025 subozlame. All rights reserved.
         </Text>
       </ScrollView>
     </SafeAreaView>
